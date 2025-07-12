@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                  Int       @id @default(autoincrement())
+  cardPanToken        String    @unique
+  entries             Entry[]   @relation("primary")
+  counterpartyentries Entry[]   @relation("counterparty")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+
+  @@index([cardPanToken, deletedAt])
+}
+
+model Entry {
+  id             Int       @id @default(autoincrement())
+  account        Account   @relation("primary", fields: [accountId], references: [id])
+  accountId      Int
+  type           EntryType
+  amountKobo     Int
+  currency       String
+  counterparty   Account   @relation("counterparty", fields: [counterpartyId], references: [id])
+  counterpartyId Int
+  createdAt      DateTime  @default(now())
+}
+
+enum EntryType {
+  debit
+  credit
+}
