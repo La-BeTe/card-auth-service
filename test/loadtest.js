@@ -15,12 +15,6 @@ export default function () {
 		idempotency_key: `key-${__VU * Math.floor(Math.random() * 99999999999999)}-${__ITER}`,
 	});
 
-	const testResponse = http.get('http://localhost:3000/health');
-	if (testResponse.status !== 200) {
-		console.error('Test server is not running');
-		return;
-	}
-
 	const res = http.post('http://localhost:3000/auth', payload, {
 		headers: { 'Content-Type': 'application/json' },
 	});

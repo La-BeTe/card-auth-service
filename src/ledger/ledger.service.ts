@@ -39,24 +39,25 @@ export class LedgerService {
 			);
 		}
 
+		const linkingRef = crypto.randomUUID();
 		await this.prisma.entry.create({
 			data: {
 				currency,
+				linkingRef,
 				amountKobo,
 				type: 'debit',
 				accountId: user.id,
 				counterpartyId: system.id,
-				linkingRef: crypto.randomUUID(),
 			},
 		});
 		await this.prisma.entry.create({
 			data: {
 				currency,
 				amountKobo,
+				linkingRef,
 				type: 'credit',
 				accountId: system.id,
 				counterpartyId: user.id,
-				linkingRef: crypto.randomUUID(),
 			},
 		});
 	}

@@ -74,7 +74,7 @@ The service uses an in-memory cache to track processed idempotency keys:
 1. **Duplicate Detection**: Before processing, the service checks if the `idempotency_key` has been seen before
 2. **Key Storage**: Processed keys are stored with a 24-hour TTL
 3. **Duplicate Response**: If a duplicate key is detected, the request is rejected with a 400 error
-4. **Key Marking**: Requests mark their key to prevent future duplicates
+4. **Key Marking**: Requests mark their key mmediately to prevent future duplicates
 
 This ensures that retries or duplicate requests don't result in double-posting to the ledger.
 
@@ -95,16 +95,14 @@ k6 run test/loadtest.js
 
 - Target: 150 requests/second
 - Duration: 60 seconds
-- P95 Latency: < 500ms
+- P95 Latency: < 30ms
 
 ## Testing
 
 ```bash
-# Run unit tests
+# Run unit and load tests
 npm test
 
-# Run with coverage
-npm run test:cov
 ```
 
 ## Database Schema
@@ -126,7 +124,7 @@ npm run test:cov
 - `linkingRef`: Unique reference linking debit/credit pairs
 - `createdAt`: Timestamp
 
-## PCI Hardening (1 Week Plan)
+## PCI Hardening
 
 If given another week to harden for PCI compliance:
 
@@ -142,29 +140,12 @@ If given another week to harden for PCI compliance:
 - Implement JWT-based authentication
 - Add role-based access control (RBAC)
 - Implement API rate limiting and throttling
-- Add IP whitelisting for admin endpoints
-- Implement session management with secure cookies
 
 ### 3. **Security Monitoring**
 
 - Add comprehensive audit logging
 - Implement real-time fraud detection
 - Add anomaly detection for unusual transaction patterns
-- Implement automated security scanning
-
-### 4. **Infrastructure Security**
-
-- Implement secure communication (TLS 1.3)
-- Add container security scanning
-- Implement secrets management
-
-### 5. **Compliance & Testing**
-
-- Add PCI DSS compliance checks
-- Implement automated penetration testing
-- Add vulnerability scanning
-- Create security incident response plan
-- Implement regular security assessments
 
 ## Environment Variables
 
@@ -184,6 +165,5 @@ SYSTEM_ACCOUNT_TOKEN=SYSTEM_SETTLEMENT
 - **Framework**: NestJS (TypeScript)
 - **Database**: PostgreSQL with Prisma ORM
 - **Caching**: In-memory cache for idempotency
-- **Monitoring**: Prometheus metrics
 - **Testing**: Jest for unit tests, k6 for load testing
 - **Containerization**: Docker with docker-compose

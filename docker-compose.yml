@@ -13,7 +13,7 @@ services:
         ports:
             - '${PORT}:${PORT}'
         command: >
-            sh -c "npx prisma migrate deploy && npm run start:dev"
+            sh -c "npx prisma migrate deploy && npm run start"
 
     db:
         image: postgres:14

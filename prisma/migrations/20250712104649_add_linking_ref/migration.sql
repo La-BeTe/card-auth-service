@@ -6,10 +6,10 @@
 
 */
 -- AlterTable
-ALTER TABLE "Entry" ADD COLUMN     "linkingRef" TEXT NOT NULL;
+ALTER TABLE "Entry" ADD COLUMN "linkingRef" TEXT NOT NULL;
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Entry_linkingRef_key" ON "Entry"("linkingRef");
+CREATE INDEX "Entry_linkingRef_key" ON "Entry"("linkingRef");
 
 -- CreateIndex
 CREATE INDEX "Entry_type_idx" ON "Entry"("type");
