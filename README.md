@@ -1,73 +1,189 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
-</p>
+# Card Authorization Service
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A TypeScript/Node.js card authorization service that processes auth requests, checks wallet balances, and maintains a double-entry ledger.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Installation
+## Quick Start
 
 ```bash
-$ npm install
+# Start the entire stack
+docker compose up
+
+# The service will be available at http://localhost:3000
 ```
 
-## Running the app
+## API Endpoints
+
+### POST /auth
+
+Processes card authorization requests.
+
+**Request:**
+
+```json
+{
+	"idempotency_key": "abc-123",
+	"card_pan_token": "TEST_TOKEN",
+	"amount_kobo": 70000,
+	"currency": "NGN",
+	"wallet_balance_kobo": 120000
+}
+```
+
+**Response (approved):**
+
+```json
+{
+	"success": true,
+	"timestamp": "2024-01-01T12:00:00.000Z",
+	"path": "/auth",
+	"data": {
+		"approved": true,
+		"auth_code": "00",
+		"balance_left": 50000
+	}
+}
+```
+
+**Response (declined):**
+
+```json
+{
+	"success": false,
+	"timestamp": "2024-01-01T12:00:00.000Z",
+	"path": "/auth",
+	"data": {
+		"approved": false,
+		"auth_code": "51",
+		"balance_left": 120000
+	}
+}
+```
+
+### GET /health
+
+Health check endpoint.
+
+### GET /metrics
+
+Metrics for observability.
+
+## How Idempotency Works
+
+The service uses an in-memory cache to track processed idempotency keys:
+
+1. **Duplicate Detection**: Before processing, the service checks if the `idempotency_key` has been seen before
+2. **Key Storage**: Processed keys are stored with a 24-hour TTL
+3. **Duplicate Response**: If a duplicate key is detected, the request is rejected with a 400 error
+4. **Key Marking**: Requests mark their key to prevent future duplicates
+
+This ensures that retries or duplicate requests don't result in double-posting to the ledger.
+
+## Load Testing
+
+Run the k6 load test:
 
 ```bash
-# development
-$ npm run start
+# Install k6 (if not already installed)
+# macOS: brew install k6
+# Ubuntu: sudo apt-get install k6
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+# Run load test (150 requests/s for 60 seconds)
+k6 run test/loadtest.js
 ```
 
-## Test
+**Expected Performance:**
+
+- Target: 150 requests/second
+- Duration: 60 seconds
+- P95 Latency: < 500ms
+
+## Testing
 
 ```bash
-# unit tests
-$ npm run test
+# Run unit tests
+npm test
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+# Run with coverage
+npm run test:cov
 ```
 
-## Support
+## Database Schema
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+**Accounts Table:**
 
-## Stay in touch
+- `id`: Primary key
+- `cardPanToken`: Unique card token identifier
+- `createdAt`, `updatedAt`, `deletedAt`: Timestamps
 
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+**Entries Table:**
 
-## License
+- `id`: Primary key
+- `accountId`: Reference to account
+- `type`: 'debit' or 'credit'
+- `amountKobo`: Amount in kobo
+- `currency`: Currency code
+- `counterpartyId`: Reference to counterparty account
+- `linkingRef`: Unique reference linking debit/credit pairs
+- `createdAt`: Timestamp
 
-Nest is [MIT licensed](LICENSE).
+## PCI Hardening (1 Week Plan)
+
+If given another week to harden for PCI compliance:
+
+### 1. **Data Protection**
+
+- Implement AES-256 encryption for card tokens at rest
+- Add field-level encryption for sensitive data
+- Implement secure key management with rotation
+- Add data masking for logs and responses
+
+### 2. **Access Control**
+
+- Implement JWT-based authentication
+- Add role-based access control (RBAC)
+- Implement API rate limiting and throttling
+- Add IP whitelisting for admin endpoints
+- Implement session management with secure cookies
+
+### 3. **Security Monitoring**
+
+- Add comprehensive audit logging
+- Implement real-time fraud detection
+- Add anomaly detection for unusual transaction patterns
+- Implement automated security scanning
+
+### 4. **Infrastructure Security**
+
+- Implement secure communication (TLS 1.3)
+- Add container security scanning
+- Implement secrets management
+
+### 5. **Compliance & Testing**
+
+- Add PCI DSS compliance checks
+- Implement automated penetration testing
+- Add vulnerability scanning
+- Create security incident response plan
+- Implement regular security assessments
+
+## Environment Variables
+
+Create a `.env` file:
+
+```env
+PORT=3000
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=password
+POSTGRES_DB=card_auth_service
+DATABASE_URL=postgresql://postgres:password@db:5432/card_auth_service
+SYSTEM_ACCOUNT_TOKEN=SYSTEM_SETTLEMENT
+```
+
+## Architecture
+
+- **Framework**: NestJS (TypeScript)
+- **Database**: PostgreSQL with Prisma ORM
+- **Caching**: In-memory cache for idempotency
+- **Monitoring**: Prometheus metrics
+- **Testing**: Jest for unit tests, k6 for load testing
+- **Containerization**: Docker with docker-compose

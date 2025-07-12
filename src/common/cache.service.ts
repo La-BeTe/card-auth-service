@@ -23,7 +23,7 @@ export class InMemoryCache implements OnModuleDestroy {
 	}
 
 	/** Mimics Redis GET */
-	async get(key: string): Promise<string | null> {
+	get(key: string): string | null {
 		const entry = this.store.get(key);
 		if (!entry) return null;
 		if (entry.expiresAt && entry.expiresAt <= Date.now()) {
@@ -34,7 +34,7 @@ export class InMemoryCache implements OnModuleDestroy {
 	}
 
 	/** Mimics Redis SET with optional TTL in seconds */
-	async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
+	set(key: string, value: string, ttlSeconds?: number): void {
 		const entry: CacheEntry = { value };
 		if (ttlSeconds) {
 			entry.expiresAt = Date.now() + ttlSeconds * 1000;
@@ -43,7 +43,7 @@ export class InMemoryCache implements OnModuleDestroy {
 	}
 
 	/** Mimics Redis DEL */
-	async del(key: string): Promise<number> {
+	del(key: string): number {
 		return this.store.delete(key) ? 1 : 0;
 	}
 

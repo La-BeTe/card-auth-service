@@ -20,6 +20,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
 				? exception.getStatus()
 				: HttpStatus.INTERNAL_SERVER_ERROR;
 
+		if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
+			console.error(exception);
+		}
+
 		// Extract message or payload
 		const exceptionResponse =
 			exception instanceof HttpException ? exception.getResponse() : null;
@@ -34,12 +38,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
 		// Your uniform error envelope
 		response.status(status).json({
 			success: false,
-			statusCode: status,
-			timestamp: new Date().toISOString(),
 			path: request.url,
-			error: {
-				message,
-			},
+			timestamp: new Date().toISOString(),
+			error: { message },
 		});
 	}
 }

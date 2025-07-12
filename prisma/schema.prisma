@@ -28,7 +28,10 @@ model Entry {
   currency       String
   counterparty   Account   @relation("counterparty", fields: [counterpartyId], references: [id])
   counterpartyId Int
+  linkingRef     String    @unique
   createdAt      DateTime  @default(now())
+
+  @@index([type])
 }
 
 enum EntryType {

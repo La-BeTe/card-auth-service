@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsInt, Min } from 'class-validator';
+import {
+	IsString,
+	IsNotEmpty,
+	IsInt,
+	Min,
+	MaxLength,
+	IsIn,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AuthorizeDto {
@@ -10,17 +17,19 @@ export class AuthorizeDto {
 	@IsNotEmpty()
 	card_pan_token!: string;
 
-	@Type(() => Number)
-	@IsInt()
 	@Min(0)
+	@IsInt()
+	@Type(() => Number)
 	amount_kobo!: number;
 
 	@IsString()
+	@MaxLength(3)
 	@IsNotEmpty()
+	@IsIn(['NGN'])
 	currency!: string;
 
-	@Type(() => Number)
-	@IsInt()
 	@Min(0)
+	@IsInt()
+	@Type(() => Number)
 	wallet_balance_kobo!: number;
 }

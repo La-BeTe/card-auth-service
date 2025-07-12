@@ -4,12 +4,11 @@ import {
 	ExecutionContext,
 	CallHandler,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { Observable, map } from 'rxjs';
-import { Request, Response } from 'express';
 
 export interface ResponseEnvelope<T = any> {
 	success: boolean;
-	statusCode: number;
 	timestamp: string;
 	path: string;
 	data: T;
@@ -24,15 +23,16 @@ export class ResponseInterceptor<T>
 		next: CallHandler<T>,
 	): Observable<ResponseEnvelope<T>> {
 		const ctx = context.switchToHttp();
-		const response = ctx.getResponse<Response>();
 		const request = ctx.getRequest<Request>();
 
 		return next.handle().pipe(
 			map((data) => ({
-				success: true,
-				statusCode: response.statusCode,
-				timestamp: new Date().toISOString(),
+				success:
+					typeof (data as any)?.approved === 'boolean'
+						? (data as any).approved
+						: true,
 				path: request.url,
+				timestamp: new Date().toISOString(),
 				data,
 			})),
 		);
