@@ -33,7 +33,7 @@ curl -X POST http://localhost:3000/auth \
 2. The idempotency key is checked. If it has been seen in the last 24 hours the request is rejected; otherwise the key is recorded and processing continues.
 3. The amount is compared with `wallet_balance_kobo` from the request. The service does not store balances; the caller supplies the balance and the service decides against it.
 4. If the amount exceeds the balance, the request is declined with code `51` and nothing is written.
-5. If it fits, the card account is looked up by `card_pan_token` and two ledger entries are written: a debit on the card account and a credit on the settlement account, sharing a generated `linkingRef`. The response carries code `00` and the remaining balance.
+5. If it fits, the card account is looked up by `card_pan_token` and two ledger entries are written in one database transaction: a debit on the card account and a credit on the settlement account, sharing a generated `linkingRef`. Either both are committed or neither is. The response carries code `00` and the remaining balance.
 
 ## API
 
@@ -100,9 +100,11 @@ A JSON summary kept in process memory: request totals (successful and failed, ba
 
 ## Idempotency
 
-Keys are held in an in-process cache with a 24-hour TTL. The key is recorded before the authorisation runs, so a second request with the same key gets `400 Duplicate request` whatever happened to the first one. This prevents the same request being posted to the ledger twice.
+Keys are held in an in-process cache with a 24-hour TTL. The key is recorded before the authorisation runs, so a second request with the same key gets `400 Duplicate request` while the first is still in flight and after it has completed. A completed request includes a decline (`51`): that is a final answer, so its key stays taken. This prevents the same request being posted to the ledger twice.
 
-It is duplicate rejection, not response replay: a client retrying after a timeout gets a 400 rather than the original result, and a request that failed (for example, unknown card token) cannot be retried with the same key. Because the cache is in memory, keys are lost on restart and are not shared between instances.
+If processing throws (unknown card token, missing settlement account, database error), the key is released and the client can retry with the same key. The ledger write is transactional, so a failed request has left nothing behind to duplicate.
+
+It is duplicate rejection, not response replay: a client retrying after a timeout gets a 400 rather than the original result. Because the cache is in memory, keys are lost on restart and are not shared between instances.
 
 ## Database schema
 
@@ -140,7 +142,7 @@ npm test          # Jest unit tests, then the k6 load test
 npx jest          # unit tests only
 ```
 
-The unit tests cover the auth decision (approve, decline, zero amount) and the ledger posting with Prisma mocked. `npm test` runs `k6 run test/loadtest.js` after Jest, so it needs k6 installed and the service running on `localhost:3000`.
+The unit tests cover the auth decision (approve, decline, zero amount), the ledger posting (both legs in one transaction, and nothing committed when the credit leg fails) and idempotency (repeats rejected after success and while in flight; key reusable after a failure). Prisma is mocked. `npm test` runs `k6 run test/loadtest.js` after Jest, so it needs k6 installed and the service running on `localhost:3000`.
 
 ### Load test
 
@@ -153,7 +155,6 @@ k6 run test/loadtest.js
 
 ## Limitations
 
-- **Ledger postings are not atomic.** The debit and credit are written by two separate `prisma.entry.create` calls with no transaction, so a failure between them leaves a one-sided posting.
 - **No stored balances.** The balance is whatever the client sends; the service does not derive it from the ledger or hold funds.
 - **Idempotency is per process and in memory**, and rejects duplicates rather than replaying the first response.
 - **Declines are not recorded.** Only approved authorisations write to the ledger, and the card account lookup happens only on that path, so an unknown token with an insufficient balance gets `51` rather than an error.
@@ -163,8 +164,7 @@ k6 run test/loadtest.js
 
 Correctness:
 
-- Wrap the debit and credit in a single `prisma.$transaction`.
-- Move idempotency keys to Postgres or Redis, store the response against the key, and replay it on retries; release the key when processing fails.
+- Move idempotency keys to Postgres or Redis, and store the response against the key so retries get the original result replayed.
 - Keep account balances (or derive them from the ledger) and place holds, instead of trusting a client-supplied balance.
 - Add a unique constraint on `(linkingRef, type)` so a posting cannot have two debits.
 
