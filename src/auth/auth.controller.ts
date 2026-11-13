@@ -13,6 +13,12 @@ export class AuthController {
 			throw new BadRequestException('Duplicate request');
 		}
 		idempotencyService.markAsProcessing(body.idempotency_key);
-		return await this.authorizeService.authorize(body);
+		try {
+			return await this.authorizeService.authorize(body);
+		} catch (err) {
+			// Nothing was committed, so free the key for a retry.
+			idempotencyService.clearKey(body.idempotency_key);
+			throw err;
+		}
 	}
 }
