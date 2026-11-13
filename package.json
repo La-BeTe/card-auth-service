@@ -1,7 +1,7 @@
 {
 	"name": "card-auth-service",
 	"version": "0.0.0",
-	"description": "",
+	"description": "Card authorisation service in NestJS: idempotency keys, auth codes and a double-entry ledger on Postgres",
 	"author": "labete",
 	"private": true,
 	"scripts": {
