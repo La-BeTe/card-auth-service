@@ -35,7 +35,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 				: (exceptionResponse as any)?.message ||
 					'Internal server error';
 
-		// Your uniform error envelope
+		// Uniform error envelope
 		response.status(status).json({
 			success: false,
 			path: request.url,

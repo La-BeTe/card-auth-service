@@ -40,25 +40,28 @@ export class LedgerService {
 		}
 
 		const linkingRef = crypto.randomUUID();
-		await this.prisma.entry.create({
-			data: {
-				currency,
-				linkingRef,
-				amountKobo,
-				type: 'debit',
-				accountId: user.id,
-				counterpartyId: system.id,
-			},
-		});
-		await this.prisma.entry.create({
-			data: {
-				currency,
-				amountKobo,
-				linkingRef,
-				type: 'credit',
-				accountId: system.id,
-				counterpartyId: user.id,
-			},
+		// Both legs of the posting commit together or not at all.
+		await this.prisma.$transaction(async (tx) => {
+			await tx.entry.create({
+				data: {
+					currency,
+					linkingRef,
+					amountKobo,
+					type: 'debit',
+					accountId: user.id,
+					counterpartyId: system.id,
+				},
+			});
+			await tx.entry.create({
+				data: {
+					currency,
+					amountKobo,
+					linkingRef,
+					type: 'credit',
+					accountId: system.id,
+					counterpartyId: user.id,
+				},
+			});
 		});
 	}
 }

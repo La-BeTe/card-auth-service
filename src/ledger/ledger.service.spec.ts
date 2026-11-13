@@ -10,15 +10,41 @@ describe('LedgerService', () => {
 	let ledger: LedgerService;
 	let prisma: PrismaService;
 
+	// Rows that would be visible in the database after the call returns.
+	let committed: any[] = [];
+
+	// The underlying write; tests make it fail to simulate a database error.
+	const entryWrite = jest.fn();
+
 	const mockPrisma = {
 		account: {
 			findUnique: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
 		},
+		// Outside a transaction a write is committed immediately.
 		entry: {
-			create: jest.fn(),
+			create: jest.fn(async (args) => {
+				await entryWrite(args);
+				committed.push(args.data);
+			}),
 		},
+		// Inside a transaction writes are staged and only committed if the
+		// callback resolves; a throw discards them, like a rollback.
+		$transaction: jest.fn(async (fn) => {
+			const staged: any[] = [];
+			const tx = {
+				entry: {
+					create: async (args) => {
+						await entryWrite(args);
+						staged.push(args.data);
+					},
+				},
+			};
+			const result = await fn(tx);
+			committed.push(...staged);
+			return result;
+		}),
 	};
 
 	beforeEach(async () => {
@@ -34,6 +60,7 @@ describe('LedgerService', () => {
 
 		// Reset mocks
 		jest.clearAllMocks();
+		committed = [];
 	});
 
 	it('throws BadRequestException if user account not found', async () => {
@@ -77,8 +104,11 @@ describe('LedgerService', () => {
 			currency: 'NGN',
 		});
 
-		expect(prisma.entry.create).toHaveBeenCalledTimes(2);
-		expect(prisma.entry.create).toHaveBeenNthCalledWith(1, {
+		expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+		expect(entryWrite).toHaveBeenCalledTimes(2);
+		expect(committed).toHaveLength(2);
+		expect(committed[0].linkingRef).toBe(committed[1].linkingRef);
+		expect(entryWrite).toHaveBeenNthCalledWith(1, {
 			data: {
 				accountId: 1,
 				type: 'debit',
@@ -88,7 +118,7 @@ describe('LedgerService', () => {
 				linkingRef: expect.any(String),
 			},
 		});
-		expect(prisma.entry.create).toHaveBeenNthCalledWith(2, {
+		expect(entryWrite).toHaveBeenNthCalledWith(2, {
 			data: {
 				accountId: 2,
 				type: 'credit',
@@ -98,5 +128,25 @@ describe('LedgerService', () => {
 				linkingRef: expect.any(String),
 			},
 		});
+	});
+
+	it('leaves no entries behind when the credit leg fails', async () => {
+		mockPrisma.account.findUnique
+			.mockResolvedValueOnce({ id: 1 }) // User account found
+			.mockResolvedValueOnce({ id: 2 }); // System account found
+		entryWrite
+			.mockResolvedValueOnce(undefined) // debit succeeds
+			.mockRejectedValueOnce(new Error('connection lost')); // credit fails
+
+		await expect(
+			ledger.recordAuthorization({
+				cardPanToken: 'tok_4242',
+				amountKobo: 10000,
+				currency: 'NGN',
+			}),
+		).rejects.toThrow('connection lost');
+
+		expect(entryWrite).toHaveBeenCalledTimes(2);
+		expect(committed).toHaveLength(0);
 	});
 });
